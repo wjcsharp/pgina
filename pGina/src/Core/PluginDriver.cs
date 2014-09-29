@@ -69,8 +69,14 @@ namespace pGina.Core
             pluginInfo.LoadedAuthenticationPlugins = PluginLoader.GetOrderedPluginsOfType<IPluginAuthentication>();
             pluginInfo.LoadedAuthorizationPlugins = PluginLoader.GetOrderedPluginsOfType<IPluginAuthorization>();
             m_properties.AddTrackedSingle<PluginActivityInformation>(pluginInfo);
+            m_properties.AddTrackedSingle<LogonInformation>(new LogonInformation());
 
             m_logger.DebugFormat("New PluginDriver created");
+        }
+
+        public LogonInformation LogonInformation
+        {
+            get { return m_properties.GetTrackedSingle<LogonInformation>(); }
         }
 
         public UserInformation UserInformation
@@ -104,10 +110,12 @@ namespace pGina.Core
         {
             try
             {
-                // Set the original username to the current username if not already set
+                // Set the original username/password to the current username if not already set
                 UserInformation userInfo = m_properties.GetTrackedSingle<UserInformation>();
                 if (string.IsNullOrEmpty(userInfo.OriginalUsername))
                     userInfo.OriginalUsername = userInfo.Username;
+                if (string.IsNullOrEmpty(userInfo.OriginalPassword))
+                    userInfo.OriginalPassword = userInfo.Password;
 
                 // Execute login
                 BeginChain();

@@ -33,8 +33,13 @@ using pGina.Shared.Settings;
 
 namespace pGina.Plugin.Ldap
 {
-    class Settings
+    public class Settings
     {
+
+        public enum EncryptionMethod
+        {
+            NO_ENCRYPTION = 0, TLS_SSL = 1, START_TLS = 2
+        }
 
         public static dynamic Store
         {
@@ -50,7 +55,7 @@ namespace pGina.Plugin.Ldap
             m_settings.SetDefault("LdapHost", new string[] { "ldap.example.com" });
             m_settings.SetDefault("LdapPort", 389);
             m_settings.SetDefault("LdapTimeout", 10);
-            m_settings.SetDefault("UseSsl", false);
+            m_settings.SetDefault("EncryptionMethod", (int)EncryptionMethod.NO_ENCRYPTION);
             m_settings.SetDefault("RequireCert", false);
             m_settings.SetDefault("ServerCertFile", "");            
             m_settings.SetDefault("SearchDN", "");
@@ -58,6 +63,7 @@ namespace pGina.Plugin.Ldap
             m_settings.SetDefault("GroupDnPattern", "cn=%g,ou=Group,dc=example,dc=com");
             m_settings.SetDefault("GroupMemberAttrib", "memberUid");
             m_settings.SetDefault("Dereference", (int)System.DirectoryServices.Protocols.DereferenceAlias.Never);
+            m_settings.SetDefault("UseAuthBindForAuthzAndGateway", false);
 
             // Authentication
             m_settings.SetDefault("AllowEmptyPasswords", false);

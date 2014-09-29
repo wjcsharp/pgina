@@ -416,8 +416,7 @@ namespace pGina
 		{
 			AddDllReference();
 
-			if( pGina::Registry::GetBool(L"ShowServiceStatusInLogonUi", true) )
-				pGina::Service::StateHelper::AddTarget(this);
+			pGina::Service::StateHelper::AddTarget(this);
 		}
 		
 		Credential::~Credential()
@@ -526,18 +525,58 @@ namespace pGina
 				SHStrDupW(password, &(m_fields->fields[m_fields->passwordFieldIdx].wstr));
 			}
 
-			// Hide MOTD field if not enabled
-			if( ! pGina::Registry::GetBool(L"EnableMotd", true) )
-				if( m_usageScenario == CPUS_LOGON )
-					m_fields->fields[CredProv::LUIFI_MOTD].fieldStatePair.fieldState = CPFS_HIDDEN;
-
 			// Hide service status if configured to do so
 			if( ! pGina::Registry::GetBool(L"ShowServiceStatusInLogonUi", true) )
 			{
-				if( m_usageScenario == CPUS_UNLOCK_WORKSTATION )
-					m_fields->fields[CredProv::LOIFI_STATUS].fieldStatePair.fieldState = CPFS_HIDDEN;
-				else if( m_usageScenario == CPUS_LOGON )
-					m_fields->fields[CredProv::LUIFI_STATUS].fieldStatePair.fieldState = CPFS_HIDDEN;
+				m_fields->fields[m_fields->statusFieldIdx].fieldStatePair.fieldState = CPFS_HIDDEN;
+			}
+
+			// If the service is not available, we initially hide username/password
+			if (!pGina::Transactions::Service::Ping()) 
+			{
+				m_fields->fields[m_fields->usernameFieldIdx].fieldStatePair.fieldState = CPFS_HIDDEN;
+				m_fields->fields[m_fields->passwordFieldIdx].fieldStatePair.fieldState = CPFS_HIDDEN;
+				
+				// In change password scenario, also hide new password and repeat new password fields
+				if (CPUS_CHANGE_PASSWORD == m_usageScenario) {
+					m_fields->fields[CredProv::CPUIFI_NEW_PASSWORD].fieldStatePair.fieldState = CPFS_HIDDEN;
+					m_fields->fields[CredProv::CPUIFI_CONFIRM_NEW_PASSWORD].fieldStatePair.fieldState = CPFS_HIDDEN;
+				}
+			}
+			else // If the service is available, we don't show the status message.
+			{
+				m_fields->fields[m_fields->statusFieldIdx].fieldStatePair.fieldState = CPFS_HIDDEN;
+			}
+
+			// If the user has requested to hide the username and/or password fields.
+			bool hideUsername = pGina::Registry::GetBool(L"HideUsernameField", false);
+			bool hidePassword = pGina::Registry::GetBool(L"HidePasswordField", false);
+			if (hideUsername)
+				m_fields->fields[m_fields->usernameFieldIdx].fieldStatePair.fieldState = CPFS_HIDDEN;
+			if (hidePassword) {
+				m_fields->fields[m_fields->passwordFieldIdx].fieldStatePair.fieldState = CPFS_HIDDEN;
+				if (m_usageScenario == CPUS_CHANGE_PASSWORD) {
+					m_fields->fields[CredProv::CPUIFI_NEW_PASSWORD].fieldStatePair.fieldState = CPFS_HIDDEN;
+					m_fields->fields[CredProv::CPUIFI_CONFIRM_NEW_PASSWORD].fieldStatePair.fieldState = CPFS_HIDDEN;
+				}
+
+				// Since we're hiding the password field, we need to put the submit button
+				// somewhere.  Here we figure out where to put it.  If the username field is 
+				// available, we can put it there, otherwise, we put it somewhere else.
+				if (hideUsername) {
+					if (m_usageScenario == CPUS_LOGON || m_usageScenario == CPUS_CREDUI || m_usageScenario == CPUS_CHANGE_PASSWORD) {
+						// Put the submit button next to the MOTD
+						m_fields->submitAdjacentTo = 1;   // MOTD
+					}
+					else if (m_usageScenario == CPUS_UNLOCK_WORKSTATION) {
+						// In the Unlock scenario, we just put it next to the "locked" label.
+						m_fields->submitAdjacentTo = CredProv::LOIFI_LOCKED;
+					}
+				}
+				else {
+					// The username field is available, so we put the submit button here.
+					m_fields->submitAdjacentTo = m_fields->usernameFieldIdx;
+				}
 			}
 		}
 
@@ -625,18 +664,71 @@ namespace pGina
 
 		void Credential::ServiceStateChanged(bool newState)
 		{
-			if(m_logonUiCallback)
-			{
-				std::wstring text = pGina::Service::StateHelper::GetStateText();
-				m_logonUiCallback->SetFieldString(this, FindStatusId(), text.c_str());
-			}
+			pDEBUG(L"Credential::ServiceStateChanged");
+			// Show/hide the username/password/status fields.
+			// 
+			// Note: the SetFieldState calls here are probably not necessary.  The Provider calls
+			// CredentialsChanged after this, which causes a full re-enumeration of all of
+			// the fields.  However, looking forward to v2 CredentialProviders, calling 
+			// SetFieldState seems to be the proper way to do this.
+			if (m_fields) {
+				if (newState) {
+					pDEBUG(L"Service is now available, revealing fields");
+					bool hideUsername = pGina::Registry::GetBool(L"HideUsernameField", false);
+					bool hidePassword = pGina::Registry::GetBool(L"HidePasswordField", false);
+
+					m_fields->fields[m_fields->statusFieldIdx].fieldStatePair.fieldState = CPFS_HIDDEN;
+					if (m_logonUiCallback)
+						m_logonUiCallback->SetFieldState(this, m_fields->statusFieldIdx, CPFS_HIDDEN);
+
+					if (!hideUsername) {
+						m_fields->fields[m_fields->usernameFieldIdx].fieldStatePair.fieldState = CPFS_DISPLAY_IN_SELECTED_TILE;
+						if(m_logonUiCallback)
+							m_logonUiCallback->SetFieldState(this, m_fields->usernameFieldIdx, CPFS_DISPLAY_IN_SELECTED_TILE);
+					}
+					if (!hidePassword) {
+						m_fields->fields[m_fields->passwordFieldIdx].fieldStatePair.fieldState = CPFS_DISPLAY_IN_SELECTED_TILE;
+						if (m_logonUiCallback )
+							m_logonUiCallback->SetFieldState(this, m_fields->passwordFieldIdx, CPFS_DISPLAY_IN_SELECTED_TILE);
+						// In change password scenario, also show new password and repeat new password fields
+						if (CPUS_CHANGE_PASSWORD == m_usageScenario) {
+							m_fields->fields[CredProv::CPUIFI_NEW_PASSWORD].fieldStatePair.fieldState = CPFS_DISPLAY_IN_SELECTED_TILE;
+							m_fields->fields[CredProv::CPUIFI_CONFIRM_NEW_PASSWORD].fieldStatePair.fieldState = CPFS_DISPLAY_IN_SELECTED_TILE;
+							if (m_logonUiCallback) {
+								m_logonUiCallback->SetFieldState(this, CredProv::CPUIFI_NEW_PASSWORD, CPFS_DISPLAY_IN_SELECTED_TILE);
+								m_logonUiCallback->SetFieldState(this, CredProv::CPUIFI_CONFIRM_NEW_PASSWORD, CPFS_DISPLAY_IN_SELECTED_TILE);
+							}
+						}
+					}
+				}
+				else 
+				{
+					m_fields->fields[m_fields->statusFieldIdx].fieldStatePair.fieldState = CPFS_DISPLAY_IN_BOTH;
+					m_fields->fields[m_fields->usernameFieldIdx].fieldStatePair.fieldState = CPFS_HIDDEN;
+					m_fields->fields[m_fields->passwordFieldIdx].fieldStatePair.fieldState = CPFS_HIDDEN;
+					if (m_logonUiCallback) {
+						m_logonUiCallback->SetFieldState(this, m_fields->statusFieldIdx, CPFS_DISPLAY_IN_BOTH);
+						m_logonUiCallback->SetFieldState(this, m_fields->usernameFieldIdx, CPFS_HIDDEN);
+						m_logonUiCallback->SetFieldState(this, m_fields->passwordFieldIdx, CPFS_HIDDEN);
+					}
+					// In change password scenario, also hide new password and repeat new password fields
+					if (CPUS_CHANGE_PASSWORD == m_usageScenario) {
+						m_fields->fields[CredProv::CPUIFI_NEW_PASSWORD].fieldStatePair.fieldState = CPFS_HIDDEN;
+						m_fields->fields[CredProv::CPUIFI_CONFIRM_NEW_PASSWORD].fieldStatePair.fieldState = CPFS_HIDDEN;
+						if (m_logonUiCallback) {
+							m_logonUiCallback->SetFieldState(this, CredProv::CPUIFI_NEW_PASSWORD, CPFS_HIDDEN);
+							m_logonUiCallback->SetFieldState(this, CredProv::CPUIFI_CONFIRM_NEW_PASSWORD, CPFS_HIDDEN);
+						}
+					}
+				}
+			}	
 		}
 
 		// Called just after the "submit" button is clicked and just before GetSerialization
 		IFACEMETHODIMP Credential::Connect( IQueryContinueWithStatus *pqcws )
 		{
 			pDEBUG(L"Credential::Connect()");
-			if( CPUS_CREDUI == m_usageScenario || CPUS_LOGON == m_usageScenario ) {
+			if( CPUS_CREDUI == m_usageScenario || CPUS_LOGON == m_usageScenario || CPUS_UNLOCK_WORKSTATION == m_usageScenario ) {
 				ProcessLoginAttempt(pqcws);
 			} else if( CPUS_CHANGE_PASSWORD == m_usageScenario ) {
 				ProcessChangePasswordAttempt();
@@ -661,7 +753,7 @@ namespace pGina
 			PWSTR username = FindUsernameValue();			
 			PWSTR password = FindPasswordValue();
 			PWSTR domain = NULL;
-			
+
 			pGina::Protocol::LoginRequestMessage::LoginReason reason = pGina::Protocol::LoginRequestMessage::Login;
 			switch(m_usageScenario)
 			{
@@ -678,16 +770,16 @@ namespace pGina
 			pDEBUG(L"ProcessLoginAttempt: Processing login for %s", username);
 			
 			// Set the status message
-			if( pqcws )
+			if (pqcws && username)
 			{
 				std::wstring message = pGina::Registry::GetString(L"LogonProgressMessage", L"Logging on...");
 
 				// Replace occurences of %u with the username
 				std::wstring unameCopy = username;
 				std::wstring::size_type unameSize = unameCopy.size();
-				for( std::wstring::size_type pos = 0; 
+				for (std::wstring::size_type pos = 0;
 					(pos = message.find(L"%u", pos)) != std::wstring::npos;
-					pos += unameSize )
+					pos += unameSize)
 				{
 					message.replace(pos, unameSize, unameCopy);
 				}

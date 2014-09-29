@@ -256,8 +256,15 @@ namespace pGina.Service.Impl
             try
             {
                 PluginDriver sessionDriver = new PluginDriver();
-                sessionDriver.UserInformation.Username = msg.Username.Trim();
+
+                // Remove white space around username
+                if (string.IsNullOrEmpty(msg.Username))
+                    sessionDriver.UserInformation.Username = msg.Username;
+                else
+                    sessionDriver.UserInformation.Username = msg.Username.Trim();
+
                 sessionDriver.UserInformation.Password = msg.Password;
+                sessionDriver.LogonInformation.Reason = msg.Reason.ToString();
 
                 m_logger.DebugFormat("Processing LoginRequest for: {0} in session: {1} reason: {2}", 
                     sessionDriver.UserInformation.Username, msg.Session, msg.Reason);

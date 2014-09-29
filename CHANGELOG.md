@@ -1,3 +1,38 @@
+3.2.4.1-beta (2014/09/26)
+---------------------------
+ - Single user plugin denys logon when single user account already
+   has active session.
+
+3.2.4.0-beta (2014/06/30)
+---------------------------
+ - Fix issue with fields not appearing when service status is hidden.  (#231)
+   
+3.2.3.0-beta (2014/06/20)
+---------------------------
+ - LDAP plugin feature: option to use authentication bind when searching 
+   in authorization and gateway stages. (#224)
+ - MySQL plugin: add option to prevent (or not) logon in gateway if 
+   server error occurs.  (#213)
+
+3.2.2.0 BETA (2014/06/17)
+---------------------------
+ - Bug fix for credential provider not properly revealing the un/password
+   fields on Windows 7 when the service becomes available. (#231)
+ - Add support for Start TLS in LDAP plugin.  (#214)
+ - Update installer to the more modern UI.
+
+3.2.1.0 BETA (2014/06/05)
+---------------------------
+ - New plugin: DriveMapper, maps drives after logon.
+ - Added option for hiding username/password fields (#219)
+ - Username/password fields are hidden when service is not available.
+ - Removed option to hide MOTD.  Users can just leave text blank if desired.
+ - Fix null pointer issues with blank username/passwords (#220)
+ - Fix issue with non GUID entries in CP list (#210)
+ - Lots of updates to the RADIUS plugin (Oooska, #223)
+ - Bug fix with unlock scenario not processing plugins (#227)
+ - New installer based on NullSoft NSIS.
+
 3.2.0.0 BETA (2013/10/17)
 ---------------------------
  - Support for changing passwords (#26)
